@@ -1,7 +1,10 @@
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
+
+
 
 # CONFIG
 csv_path = "./data/stroke.csv"
@@ -13,13 +16,16 @@ work_palette = {
     "children": "#8bd3c7",
     "Never_worked": "#ffa600"
 }
+
+
+
 # DATA COLLECTION
 df=pd.read_csv(csv_path)
+#TODO HAY QUE QUITAR LOS NULLS: interpolation no es en esta entrega no?
 
-#TODO HAY QUE QUITAR LOS NULLS
-# interpolation no es en esta entrega no?
 
-#DATA TYPE CLEAN
+
+# DATA CLEANSING
 df=df.drop(columns=["id"])
 df["age"]=df["age"].apply(int)
 df["ever_married"] = df["ever_married"].map({"Yes":1, "No":0})
@@ -32,7 +38,37 @@ for column in df.columns:
     print(df[column].unique())
 
 
+
 # DISTRIBUTION PLOTS
+plt.figure(figsize=(8, 6))
+ax = sns.countplot(data=df, x="stroke", hue="stroke", palette=stroke_palette)
+ax.bar_label(ax.containers[0], padding=3)
+plt.title("Stroke Distribution (Raw Counts)")
+plt.xlabel("Stroke (0: No, 1: Yes)")
+plt.ylim(0, df['stroke'].value_counts().max() * 1.1) 
+plt.show()
+
+missing_data = df.isnull().sum()
+total_rows = len(df)
+plt.figure(figsize=(12, 6))
+ax = sns.barplot(
+    x=missing_data.index, 
+    y=missing_data.values, 
+    hue=missing_data.index,
+    palette="Reds",
+    legend=False
+)
+for i, container in enumerate(ax.containers):
+    v = missing_data.iloc[i]
+    label = f'{v}\n({(v/total_rows)*100:.1f}%)' if v > 0 else '0'
+    ax.bar_label(container, labels=[label], padding=3)
+plt.title("Missing Values per Column")
+plt.xticks(rotation=45)
+plt.ylabel("Count of Missing Values")
+plt.ylim(0, missing_data.max() * 1.3)
+plt.tight_layout()
+plt.show()
+
 fig, axes = plt.subplots(3,2, figsize=(12,11))
 fig.suptitle("Data Distribution")
 
@@ -87,6 +123,8 @@ plot6.set_xlabel("")
 plt.tight_layout()
 plt.show()
 
+
+
 # CORRELATION HEATMAP
 corr_matrix=df_dummies.corr()
 
@@ -97,6 +135,8 @@ fig = px.imshow(
 )
 
 fig.write_html("corr_matrix.html")
+
+
 
 # RELATIONSHIP BETWEEN VARIABLES
 fig, axes = plt.subplots(1, 3, figsize=(16, 8))
@@ -138,6 +178,8 @@ axes[2].set_title("Glucose Levels")
 plt.tight_layout()
 plt.show()
 
+
+# WORK TYPE ANALYSIS
 pivot_table = df.groupby(['work_type', 'is_rural'])['stroke'].mean().unstack()
 
 fig, axes = plt.subplots(1, 2, figsize=(18, 7))
@@ -170,6 +212,9 @@ axes[1].set_ylabel("Density")
 plt.tight_layout()
 plt.show()
 
+
+
+# HYPERTENSION ANALYSIS
 pct_table = pd.crosstab(df['hypertension'], df['stroke'], normalize='index')
 
 color_list = [stroke_palette[0], stroke_palette[1]]
