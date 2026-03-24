@@ -21,7 +21,6 @@ work_palette = {
 
 # DATA COLLECTION
 df=pd.read_csv(csv_path)
-#TODO HAY QUE QUITAR LOS NULLS: interpolation no es en esta entrega no?
 
 
 
@@ -133,7 +132,8 @@ fig = px.imshow(
     text_auto=True,
     color_continuous_scale="RdBu_r"
 )
-
+# note that this plot is not shown in execution
+# it should be manually opened on a html renderer
 fig.write_html("corr_matrix.html")
 
 
