@@ -1,5 +1,6 @@
 
 import optuna
+import numpy as np
 import pandas as pd
 
 from imblearn.under_sampling import RandomUnderSampler
@@ -22,6 +23,8 @@ from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
+
+from sklearn.metrics import f1_score
 
 
 # Imbalanced dataset
@@ -134,7 +137,6 @@ def objective(trial):
         clf = XGBClassifier(**param)
 
     elif classifier_type == "adab":
-        # AdaBoost often works best with shallow decision trees (stumps)
         base_depth = trial.suggest_int("adab_depth", 1, 3)
         clf = AdaBoostClassifier(
             estimator=DecisionTreeClassifier(max_depth=base_depth),
@@ -144,7 +146,6 @@ def objective(trial):
         )
 
     elif classifier_type == "bayes":
-        # GaussianNB has fewer params, but we can tune the var_smoothing
         smoothing = trial.suggest_float("nb_smooth", 1e-11, 1e-8, log=True)
         clf = GaussianNB(var_smoothing=smoothing)
 
@@ -165,31 +166,40 @@ def objective(trial):
         ('sampler', sampler),
         ('classifier', clf)
     ])
-    skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=random_seed)
-    
-    try:
-        score = cross_val_score(
-            pipeline, 
-            df_dummies.drop(columns=['stroke']), 
-            df_dummies['stroke'], 
-            cv=skf, 
-            scoring='f1_macro',
-            n_jobs=-1
-        ).mean()
-    except Exception as e:
-        print(f"Trial failed due to: {e}")
-        return 0.0
-    return score
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=random_seed)
+    X = df_dummies.drop(columns=['stroke'])
+    y = df_dummies['stroke']
 
-# 1. Create the study
-# We use 'maximize' because we want to maximize the F1-score
+    fold_scores = []
+    for fold_idx, (train_idx, val_idx) in enumerate(skf.split(X, y)):
+        X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
+        y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
+
+        try:
+            pipeline.fit(X_train, y_train)
+            y_pred = pipeline.predict(X_val)
+            fold_score = f1_score(y_val, y_pred, average='macro')
+        except Exception as e:
+            print(f"Fold failed: {e}")
+            return 0.0
+
+        fold_scores.append(fold_score)
+
+        trial.report(np.mean(fold_scores), step=fold_idx)
+        if trial.should_prune():
+            raise optuna.TrialPruned()
+
+    return np.mean(fold_scores)
+
+
 study = optuna.create_study(
     study_name="stroke_prediction_optimization",
     direction="maximize",
-    sampler=optuna.samplers.TPESampler(seed=random_seed) # Uses Bayesian optimization
+    sampler=optuna.samplers.TPESampler(seed=random_seed),
+    pruner=optuna.pruners.MedianPruner(n_startup_trials=20, n_warmup_steps=3)
 )
 
-study.optimize(objective, n_trials=100, show_progress_bar=True)
+study.optimize(objective, n_trials=100, show_progress_bar=True, n_jobs=-1)
 
 print("\n--- Optimization Finished ---")
 print(f"Best F1-macro Score: {study.best_value:.4f}")
