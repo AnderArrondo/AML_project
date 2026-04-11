@@ -53,23 +53,28 @@ df_dummies= pd.get_dummies(df,columns=["work_type","gender","smoking_status"])
 print(df.head())
 print(df_dummies.head())
 
+X = df_dummies.drop(columns=['stroke'])
+y = df_dummies['stroke']
+X_np = X.values.astype(np.float32)
+y_np = y.values
+
+skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=random_seed)
+splits = list(skf.split(X, y))
+
 def objective(trial):
     # imputation
-    imputer_type = trial.suggest_categorical("imputer_type", ["simple", "knn", "iterative"])
+    imputer_type = trial.suggest_categorical("imputer_type", ["simple", "knn"])
     if imputer_type == "simple":
         strat = trial.suggest_categorical("simp_imp_strategy", ["mean", "median", "most_frequent"])
         imputer = SimpleImputer(strategy=strat)
     elif imputer_type == "knn":
         n_neighbors = trial.suggest_int("knn_input_neighs", 3, 20)
         imputer = KNNImputer(n_neighbors=n_neighbors)
-    else:
-        imputer = IterativeImputer(random_state=random_seed)
 
     # sampling
     sampler_type = trial.suggest_categorical(
         "sampler_type",
-        ["random_over", "random_under", "adasyn", "smote", "smoteenn",
-         "smotetomek", "svmsmote", "borderlinesmote", "kmeansmote", "none"]
+        ["random_over", "random_under", "adasyn", "smote", "none"]
     
     )
     if sampler_type == "random_over":
@@ -82,56 +87,25 @@ def objective(trial):
     elif sampler_type == "smote":
         n_smote = trial.suggest_int("smote_n_neighs", 3, 20)
         sampler = SMOTE(k_neighbors=n_smote, random_state=random_seed)
-    elif sampler_type == "smoteenn":
-        sampler = SMOTEENN(random_state=random_seed)
-    elif sampler_type == "smotetomek":
-        sampler = SMOTETomek(random_state=random_seed)
-    elif sampler_type == "svmsmote":
-        k_neighs = trial.suggest_int("svmsmote_k_neighs", 3, 20)
-        m_neighs = trial.suggest_int("svmsmote_m_neighs", 5, 50)
-        sampler = SVMSMOTE(
-            k_neighbors=k_neighs,
-            m_neighbors=m_neighs,
-            random_state=random_seed
-        )
-    elif sampler_type == "borderlinesmote":
-        k_neighs = trial.suggest_int("borderlinesmote_k_neighs", 3, 20)
-        m_neighs = trial.suggest_int("borderlinesmote_m_neighs", 5, 50)
-        kind = trial.suggest_categorical("borderlinesmote_kind", ["borderline-1", "borderline-2"])
-        sampler = BorderlineSMOTE(
-            k_neighbors=k_neighs,
-            m_neighbors=m_neighs,
-            kind=kind,
-            random_state=random_seed
-        )
-    elif sampler_type == "kmeansmote":
-        k_neighs = trial.suggest_int("kmeansmote_k_neighs", 3, 20)
-        sampler = KMeansSMOTE(
-            k_neighbors=k_neighs,
-            random_state=random_seed
-        )
     else:
         sampler = "passthrough"
 
     # classifier
     classifier_type = trial.suggest_categorical(
         "classifier_type",
-        ["lr", "rf", "xgb", "adab", "bayes", "svc", "knn"]
+        ["rf", "xgb", "adab"]
     )
-    if classifier_type == "lr":
-        c_param = trial.suggest_float("lr_c", 1e-5, 10, log=True)
-        clf = LogisticRegression(C=c_param, max_iter=1000, random_state=42)
-
-    elif classifier_type == "rf":
+    if classifier_type == "rf":
         depth = trial.suggest_int("rf_depth", 2, 32, log=True)
-        n_estimators = trial.suggest_int("rf_n", 50, 500)
-        clf = RandomForestClassifier(max_depth=depth, n_estimators=n_estimators, random_state=42)
+        n_estimators = trial.suggest_int("rf_n", 100, 300)
+        clf = RandomForestClassifier(max_depth=depth, n_estimators=n_estimators, class_weight="balanced", random_state=42)
 
     elif classifier_type == "xgb":
         param = {
-            "n_estimators": trial.suggest_int("xgb_n", 100, 500),
+            "n_estimators": trial.suggest_int("xgb_n", 100, 300),
             "max_depth": trial.suggest_int("xgb_d", 3, 9),
             "learning_rate": trial.suggest_float("xgb_lr", 1e-3, 0.1, log=True),
+            "scale_pos_weight": trial.suggest_float("xgb_spw", 1.0, 20.0),
             "random_state": 42
         }
         clf = XGBClassifier(**param)
@@ -140,24 +114,10 @@ def objective(trial):
         base_depth = trial.suggest_int("adab_depth", 1, 3)
         clf = AdaBoostClassifier(
             estimator=DecisionTreeClassifier(max_depth=base_depth),
-            n_estimators=trial.suggest_int("adab_n", 50, 500),
+            n_estimators=trial.suggest_int("adab_n", 50, 300),
             learning_rate=trial.suggest_float("adab_lr", 0.01, 1.0, log=True),
             random_state=42
         )
-
-    elif classifier_type == "bayes":
-        smoothing = trial.suggest_float("nb_smooth", 1e-11, 1e-8, log=True)
-        clf = GaussianNB(var_smoothing=smoothing)
-
-    elif classifier_type == "svc":
-        c_svc = trial.suggest_float("svc_c", 1e-4, 10, log=True)
-        kernel = trial.suggest_categorical("svc_kernel", ["linear", "poly", "rbf"])
-        clf = SVC(C=c_svc, kernel=kernel, probability=True, random_state=42)
-
-    elif classifier_type == "knn":
-        k = trial.suggest_int("knn_k", 3, 15)
-        weights = trial.suggest_categorical("knn_weights", ["uniform", "distance"])
-        clf = KNeighborsClassifier(n_neighbors=k, weights=weights)
 
     scaler = StandardScaler()
     pipeline = Pipeline(steps=[
@@ -166,14 +126,11 @@ def objective(trial):
         ('sampler', sampler),
         ('classifier', clf)
     ])
-    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=random_seed)
-    X = df_dummies.drop(columns=['stroke'])
-    y = df_dummies['stroke']
 
     fold_scores = []
-    for fold_idx, (train_idx, val_idx) in enumerate(skf.split(X, y)):
-        X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
-        y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
+    for fold_idx, (train_idx, val_idx) in enumerate(splits):
+        X_train, X_val = X_np[train_idx], X_np[val_idx]
+        y_train, y_val = y_np[train_idx], y_np[val_idx]
 
         try:
             pipeline.fit(X_train, y_train)
@@ -195,8 +152,8 @@ def objective(trial):
 study = optuna.create_study(
     study_name="stroke_prediction_optimization",
     direction="maximize",
-    sampler=optuna.samplers.TPESampler(seed=random_seed),
-    pruner=optuna.pruners.MedianPruner(n_startup_trials=20, n_warmup_steps=3)
+    sampler=optuna.samplers.TPESampler(seed=random_seed, n_startup_trials=10),
+    pruner=optuna.pruners.MedianPruner(n_startup_trials=10, n_warmup_steps=3)
 )
 
 study.optimize(objective, n_trials=100, show_progress_bar=True, n_jobs=-1)
@@ -206,3 +163,7 @@ print(f"Best F1-macro Score: {study.best_value:.4f}")
 print("Best Hyperparameters:")
 for key, value in study.best_params.items():
     print(f"  {key}: {value}")
+
+df_trials = study.trials_dataframe()
+print("\nBest sampler:", df_trials.groupby("params_sampler_type")["value"].mean().idxmax())
+print("Best classifier:", df_trials.groupby("params_classifier_type")["value"].mean().idxmax())
