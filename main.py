@@ -40,7 +40,7 @@ SEED = 42
 CSV_PATH = "./data/stroke.csv"
 
 #EDITABLE PARAMETERS
-TRIAL_NUM=10
+TRIAL_NUM=5000
 METRIC="mcc" #f1, acc, b_acc, mcc
 
 IMPUTE_DATA=True
@@ -116,13 +116,13 @@ def objective(trial):
     )
     if classifier_type == "rf":
         depth = trial.suggest_int("rf_depth", 2, 8, log=True)
-        n_estimators = trial.suggest_int("rf_n", 200, 500)
+        n_estimators = trial.suggest_int("rf_n", 300, 800)
         clf = RandomForestClassifier(max_depth=depth, n_estimators=n_estimators, class_weight="balanced", random_state=SEED)
 
     elif classifier_type == "xgb":
         param = {
-            "n_estimators": trial.suggest_int("xgb_n", 300, 500),
-            "max_depth": trial.suggest_int("xgb_d", 3, 6),
+            "n_estimators": trial.suggest_int("xgb_n", 300, 800),
+            "max_depth": trial.suggest_int("xgb_d", 3, 8),
             "learning_rate": trial.suggest_float("xgb_lr", 1e-5, 0.1, log=True),#PROBAR 1e-5
             "scale_pos_weight": trial.suggest_float("xgb_spw", 1.0, 5.0),
             "random_state": SEED
@@ -133,7 +133,7 @@ def objective(trial):
         base_depth = trial.suggest_int("adab_depth", 1, 3)
         clf = AdaBoostClassifier(
             estimator=DecisionTreeClassifier(max_depth=base_depth),
-            n_estimators=trial.suggest_int("adab_n", 300, 700),
+            n_estimators=trial.suggest_int("adab_n", 300, 800),
             learning_rate=trial.suggest_float("adab_lr", 0.001, 1.0, log=True),
             random_state=SEED
         )

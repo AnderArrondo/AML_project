@@ -160,3 +160,7 @@ best_model.fit(X_res, y_res)
 y_val_pred = (best_model.predict_proba(X_val_imputed)[:, 1] >= final_threshold).astype(int)
 print("\n--- FINAL VALIDATION MCC ---")
 print(matthews_corrcoef(y_val, y_val_pred))
+
+with open("1000trials.txt", "w") as f:
+    f.write(str(best_params_dict))
+    f.write(matthews_corrcoef(y_val, y_val_pred))
