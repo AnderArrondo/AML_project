@@ -25,7 +25,6 @@ from imblearn.under_sampling import RandomUnderSampler
 csv_path = "./data/stroke.csv"
 random_seed = 42
 n_splits = 5
-sampling_strategy = 0.3
 
 # --- DATA COLLECTION ---
 df = pd.read_csv(csv_path)
@@ -75,6 +74,8 @@ def objective(trial):
         "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
     }
     threshold = trial.suggest_float("threshold", 0.01, 0.35)
+    knn_n_neighs = trial.suggest_int("knn_n_neighs", 3, 10)
+    sampling_strategy = trial.suggest_float("sampling_strategy", 0.1, 0.5)
 
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_seed)
     mccs = []
@@ -83,8 +84,8 @@ def objective(trial):
         X_train, X_test = X_cv.iloc[train_idx].copy(), X_cv.iloc[test_idx].copy()
         y_train, y_test = y_cv.iloc[train_idx], y_cv.iloc[test_idx]
 
-        # Preprocessing (must be inside CV to avoid data leakage)
-        knn_imputer = KNNImputer(n_neighbors=5)
+
+        knn_imputer = KNNImputer(n_neighbors=knn_n_neighs)
         X_train = pd.DataFrame(knn_imputer.fit_transform(X_train), columns=X.columns)
         X_test = pd.DataFrame(knn_imputer.transform(X_test), columns=X.columns)
 
@@ -123,7 +124,7 @@ def objective(trial):
 # --- RUN OPTIMIZATION ---
 sampler = TPESampler(seed=random_seed)
 study = optuna.create_study(direction="maximize", sampler=sampler)
-study.optimize(objective, n_trials=200, n_jobs=2, show_progress_bar=True)
+study.optimize(objective, n_trials=1000, n_jobs=2, show_progress_bar=True)
 
 print("\n--- OPTUNA BEST PARAMS ---")
 print(study.best_params)
@@ -131,9 +132,11 @@ print(f"Best Mean MCC: {study.best_value:.4f}")
 
 best_params_dict = study.best_params.copy()
 final_threshold = best_params_dict.pop('threshold')
+knn_n_neighs = best_params_dict.pop('knn_n_neighs')
+sampling_strategy = best_params_dict.pop('sampling_strategy')
 
 # --- FINAL EVALUATION ON VALIDATION SET ---
-knn_imputer = KNNImputer(n_neighbors=5)
+knn_imputer = KNNImputer(n_neighbors=knn_n_neighs)
 X_cv_imputed = pd.DataFrame(knn_imputer.fit_transform(X_cv), columns=X.columns)
 X_val_imputed = pd.DataFrame(knn_imputer.transform(X_val), columns=X.columns)
 
