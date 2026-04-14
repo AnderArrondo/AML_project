@@ -23,7 +23,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 
-from sklearn.metrics import f1_score, accuracy_score, balanced_accuracy_score
+from sklearn.metrics import f1_score, accuracy_score, balanced_accuracy_score, matthews_corrcoef
 
 
 # Imbalanced dataset
@@ -41,15 +41,13 @@ CSV_PATH = "./data/stroke.csv"
 
 #EDITABLE PARAMETERS
 TRIAL_NUM=10
-METRIC="acc" #f1, acc or b_acc
+METRIC="mcc" #f1, acc, b_acc, mcc
 
 IMPUTE_DATA=True
 SAMPLE_DATA=True
 SCALE_DATA=True
 
 OUTPUT_FILE = "logs_optim_strokesAML.txt"
-
-
 
 df=pd.read_csv(CSV_PATH)
 
@@ -164,13 +162,14 @@ def objective(trial):
         
             if METRIC=="f1":
                 fold_score = f1_score(y_val, y_pred, average='macro')
-
             elif METRIC=="acc":
                 fold_score = accuracy_score(y_val, y_pred)
             elif METRIC=="b_acc":
                 fold_score = balanced_accuracy_score(y_val, y_pred)
-            else:#F1
-                fold_score = f1_score(y_val, y_pred, average='macro')
+            elif METRIC=="mcc":
+                fold_score=matthews_corrcoef(y_val,y_pred)
+            else:#mcc
+                fold_score = matthews_corrcoef(y_val, y_pred)
 
 
         except Exception as e:
