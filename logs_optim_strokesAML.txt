@@ -1,0 +1,16 @@
+
+--- Optimization Finished ---
+5000 trials
+Best Score: 0.1750
+Best Hyperparameters:
+  imputer_type: simple
+  simp_imp_strategy: most_frequent
+  sampler_type: random_over
+  classifier_type: adab
+  adab_depth: 3
+  adab_n: 788
+  adab_lr: 0.22782680377067754
+
+Best sampler: random_over
+Best classifier: adab
+------------------------------
