@@ -1,6 +1,7 @@
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier, StackingClassifier, GradientBoostingClassifier, VotingClassifier
 from sklearn.metrics import precision_score, recall_score, f1_score, matthews_corrcoef, mean_squared_error
 from sklearn.linear_model import LogisticRegression
 from imblearn.over_sampling import SMOTE
@@ -25,7 +26,7 @@ df.drop(columns=["id"], inplace=True)
 
 numerical_cols = ["age", "avg_glucose_level", "bmi"]
 categorical_cols = ["gender", "ever_married", "work_type", "Residence_type", "smoking_status"]
-df = pd.get_dummies(df, columns=categorical_cols, drop_first=False)
+df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
 
 bool_cols = df.select_dtypes(include="bool").columns
 df[bool_cols] = df[bool_cols].astype(int)
@@ -97,8 +98,7 @@ print(f"MSE:       {mean_squared_error(y_test, lr_pred):.4f}")
 
 # LOGISTIC REGRESSION OPTIMIZATION
 
-
-print("\nHas Logistic Regression is the best, we are going to select the best threshold in order to maximize the results")
+print("\nAs Logistic Regression is the best, we are going to select the best threshold in order to maximize the results")
 
 y_probs = lr_clf.predict_proba(X_test_scaled)[:, 1]
 
@@ -123,3 +123,48 @@ print(f"Best MCC-Score: {best_mcc:.4f}")
 y_final_pred = (y_probs >= best_threshold).astype(int)
 print(f"Recall final: {recall_score(y_test, y_final_pred):.4f}")
 print(f"Precision final: {precision_score(y_test, y_final_pred):.4f}")
+
+print(f"\n\n\nCoefficient values: \nA cofficient value of c means that increasing that an increase of 1 unit in Xi, increases the log-odds by c, and increases the odds by e(c)\n\n")
+# In this case, we are working with normalized values, so this statement is not really true
+# Anyways, the increase in the odds is true for the normalized values
+
+
+coeffs = {}
+for i in range(lr_clf.n_features_in_):
+    coeffs[X.columns[i]] = lr_clf.coef_[0][i]
+
+best_factors = []
+
+for k,v in {k: v for k, v in sorted(coeffs.items(), key=lambda item: -item[1])}.items():
+    print(f"{k}: {v:.4f}")
+    if(abs(v) > 0.13):
+        best_factors.append(k)
+
+# We will try to use a more complex model with the most significant factors
+gb_clf = GradientBoostingClassifier(random_state=random_seed)
+lr_clf = LogisticRegression(random_state=random_seed, max_iter=5000)
+rf_clf = RandomForestClassifier(random_state=random_seed)
+svc_clf = SVC(probability=True, random_state=random_seed, cache_size=3000)
+
+base_models = [
+    ('gb', gb_clf),
+    ('lr', lr_clf),
+    ('svc', svc_clf)
+]
+
+stc_clf = StackingClassifier(estimators = base_models,cv = 5)
+vtg_clf = VotingClassifier(estimators = base_models, voting = "soft")
+
+
+stc_clf.fit(X_train, y_train)
+vtg_clf.fit(X_train_res, y_train_res)
+
+y_pred_voting = stc_clf.predict(X_test)
+y_pred_stacking = vtg_clf.predict(X_test)
+
+mcc_voting = matthews_corrcoef(y_test, y_pred_voting)
+mcc_stacking = matthews_corrcoef(y_test, y_pred_stacking)
+
+print(f"Results on more comples model VotingClf and StackingClf: \n")
+print(f"MCC Voting: {mcc_voting:.4f}")
+print(f"MCC Stacking: {mcc_stacking:.4f}")
