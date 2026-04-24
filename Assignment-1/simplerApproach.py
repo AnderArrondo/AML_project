@@ -1,7 +1,7 @@
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import SVC
-from sklearn.ensemble import RandomForestClassifier, StackingClassifier, GradientBoostingClassifier, VotingClassifier
+from sklearn.ensemble import RandomForestClassifier, StackingClassifier, GradientBoostingClassifier, VotingClassifier, BaggingClassifier
 from sklearn.metrics import precision_score, recall_score, f1_score, matthews_corrcoef, mean_squared_error
 from sklearn.linear_model import LogisticRegression
 from imblearn.over_sampling import SMOTE
@@ -39,6 +39,8 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=random_seed
 )
 
+y_train = y_train.to_numpy()
+
 # Scaling data
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
@@ -46,9 +48,19 @@ X_test_scaled = scaler.transform(X_test)
 
 
 # Creating samplings due to imbalances
-sm = SMOTE(sampling_strategy=0.5, random_state=42) # Lleva la clase minoritaria al 50% de la mayoritaria
+sm = SMOTE(sampling_strategy=0.95, random_state=42) # Lleva la clase minoritaria al 50% de la mayoritaria
 X_train_res, y_train_res = sm.fit_resample(X_train_scaled, y_train)
 
+'''
+positive_idx = np.where(y_train == 1)[0]
+negative_idx = np.where(y_train == 0)[0]
+
+
+indexes = np.concatenate([positive_idx, negative_idx[0:400]])
+np.random.shuffle(indexes)
+
+X_train_res, y_train_res = X_train_scaled[indexes], y_train[indexes]
+'''
 
 
 # Model creation and training
@@ -130,41 +142,66 @@ print(f"\n\n\nCoefficient values: \nA cofficient value of c means that increasin
 
 
 coeffs = {}
+column_names = X.columns
+
 for i in range(lr_clf.n_features_in_):
-    coeffs[X.columns[i]] = lr_clf.coef_[0][i]
+    coeffs[column_names[i]] = lr_clf.coef_[0][i]
 
-best_factors = []
+best_factors_idx = []
 
-for k,v in {k: v for k, v in sorted(coeffs.items(), key=lambda item: -item[1])}.items():
+for k,v in coeffs.items():
     print(f"{k}: {v:.4f}")
     if(abs(v) > 0.13):
-        best_factors.append(k)
+        best_factors_idx.append(np.argwhere(column_names == k)[0][0])
+
+
+# Filtered data by best factors
+X_train_res_fact = X_train_res[:,best_factors_idx]
+X_test_scaled_fact = X_test_scaled[:,best_factors_idx]
 
 # We will try to use a more complex model with the most significant factors
 gb_clf = GradientBoostingClassifier(random_state=random_seed)
 lr_clf = LogisticRegression(random_state=random_seed, max_iter=5000)
-rf_clf = RandomForestClassifier(random_state=random_seed)
-svc_clf = SVC(probability=True, random_state=random_seed, cache_size=3000)
+svc_fast = BaggingClassifier(
+    estimator=SVC(probability=True, random_state=random_seed, cache_size=4000),
+    n_estimators=10, 
+    max_samples=0.1, 
+    n_jobs=-1
+)
+
 
 base_models = [
     ('gb', gb_clf),
     ('lr', lr_clf),
-    ('svc', svc_clf)
+    ('svc_bagged', svc_fast)
 ]
 
-stc_clf = StackingClassifier(estimators = base_models,cv = 5)
-vtg_clf = VotingClassifier(estimators = base_models, voting = "soft")
+stc_clf = StackingClassifier(estimators = base_models, final_estimator=LogisticRegression(random_state=random_seed),cv = 3, n_jobs=-1)
+vtg_clf = VotingClassifier(estimators = base_models, voting = "soft", n_jobs=-1)
 
 
-stc_clf.fit(X_train, y_train)
-vtg_clf.fit(X_train_res, y_train_res)
+stc_clf.fit(X_train_res_fact, y_train_res)
+vtg_clf.fit(X_train_res_fact, y_train_res)
 
-y_pred_voting = stc_clf.predict(X_test)
-y_pred_stacking = vtg_clf.predict(X_test)
+y_pred_stacking = stc_clf.predict_proba(X_train_scaled[:,best_factors_idx])[:,1]
+y_pred_voting = vtg_clf.predict_proba(X_train_scaled[:,best_factors_idx])[:,1]
 
-mcc_voting = matthews_corrcoef(y_test, y_pred_voting)
-mcc_stacking = matthews_corrcoef(y_test, y_pred_stacking)
+
+
+mcc_stacking = matthews_corrcoef(y_test, (y_pred_stacking>0.5).astype(int))
+mcc_voting = matthews_corrcoef(y_test, (y_pred_voting>0.5).astype(int))
 
 print(f"Results on more comples model VotingClf and StackingClf: \n")
-print(f"MCC Voting: {mcc_voting:.4f}")
 print(f"MCC Stacking: {mcc_stacking:.4f}")
+print(f"MCC Voting: {mcc_voting:.4f}")
+
+print("\nStacking:\n")
+for threshold in np.arange(0.05, 0.95, 0.05):
+    y_pred_adj = (y_pred_stacking > threshold).astype(int)
+    print(f"Umbral: {threshold:.2f} | MCC: {matthews_corrcoef(y_train, y_pred_adj):.4f}")
+
+print("\nVoting:\n")
+for threshold in np.arange(0.05, 0.95, 0.05):
+    y_pred_adj = (y_pred_voting > threshold).astype(int)
+    print(f"Umbral: {threshold:.2f} | MCC: {matthews_corrcoef(y_train, y_pred_adj):.4f}")
+
