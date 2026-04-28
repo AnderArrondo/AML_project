@@ -1,5 +1,6 @@
 
 exercises/
+optional_assignment/
 
 # Python-generated files
 __pycache__/
@@ -13,3 +14,4 @@ wheels/
 .venv
 
 *.ma
+ 
