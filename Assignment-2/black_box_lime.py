@@ -1,4 +1,8 @@
+
+import shap
+import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 # sklearn
 from sklearn.model_selection import train_test_split
@@ -33,23 +37,39 @@ Additionally models performance will also be shown.
 
 
 RANDOM_SEED = 42
-DATA_PATH = "Assignment-2/LengthOfStay.csv"
+DATA_PATH = "./Assignment-2/LengthOfStay.csv"
+PROCESSED_PATH = "./Assignment-2/processed_data.csv"
 SHOW_PREDS = 250 
 
+PREPROCESS_DATA = False
 
 
+if PREPROCESS_DATA:
+    data = pd.read_csv(DATA_PATH) # .iloc[0:5000,:]# for faster rendering
 
-data = pd.read_csv(DATA_PATH) # .iloc[0:5000,:] for faster rendering
+    # Data cleaning
+    order = ["0", "1", "2", "3", "4", "5+"]
+    data['rcount'] = pd.Categorical(data['rcount'], categories=order, ordered=True)
+    data['rcount'] = data['rcount'].cat.codes  # 0,1,2,3,4,5 integers
 
-# Data cleaning
-order=["0","1","2","3","4","5+"]
-data['rcount'] = pd.Categorical(data['rcount'], categories=order, ordered=True)
+    categorical_cols = ['gender', 'facid']
 
-categorical_cols = ['gender', 'rcount', 'facid']
-df = pd.get_dummies(data, columns=categorical_cols, drop_first=True)
+    # feature engineering
+    non_feature_cols = {'eid', 'vdate', 'discharged', 'lengthofstay'} | set(categorical_cols)
+    binary_cols = [
+        col for col in data.columns
+        if col not in non_feature_cols and data[col].dropna().isin([0, 1]).all()
+    ]
+    data['bin_col_sum'] = data[binary_cols].sum(axis=1)
 
-df = df.drop(columns=['eid', 'vdate', 'discharged'])
+    df = pd.get_dummies(data, columns=categorical_cols, drop_first=True)
 
+    df = df.drop(columns=['eid', 'vdate', 'discharged'])
+
+    df.to_csv(PROCESSED_PATH)
+
+else:
+    df = pd.read_csv(PROCESSED_PATH) # .iloc[0:5000,:]# for faster rendering
 
 
 # Data splitting
@@ -59,7 +79,7 @@ y = df['lengthofstay']
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=RANDOM_SEED
 )
-
+feature_names = X.columns.tolist()
 
 
 # Models creation
@@ -111,21 +131,82 @@ for model in models:
 
 
 # LIME
-for model in models:
-    print(f"Showing the model: {model}")
+# for model in models:
+#     print(f"Showing the model: {model}")
 
-    lime = LimeTabular(
-        model = models[model],
-        data=X_train,
-        random_state=RANDOM_SEED,
-        mode = 'regression'
+#     lime = LimeTabular(
+#         model = models[model],
+#         data=X_train,
+#         random_state=RANDOM_SEED,
+#         mode = 'regression'
+#     )
+
+#     lime_local = lime.explain_local(
+#         X_test[:SHOW_PREDS],
+#         y_test[:SHOW_PREDS],
+#         name='lime'
+#     )
+
+#     show(lime_local)
+#     input("")  # press enter to see the next model
+
+
+X_test_explain = X_test.iloc[:SHOW_PREDS]
+
+for name, model in models.items():
+    print(f"\n── SHAP for '{name}' ──")
+
+    scaler: StandardScaler = model.named_steps['standardscaler']
+    estimator = model[-1]  # final step after scaler
+
+    # Scale the slices we need
+    X_train_scaled = pd.DataFrame(
+        scaler.transform(X_train), columns=feature_names
+    )
+    X_test_scaled = pd.DataFrame(
+        scaler.transform(X_test_explain), columns=feature_names
     )
 
-    lime_local = lime.explain_local(
-        X_test[:SHOW_PREDS],
-        y_test[:SHOW_PREDS],
-        name='lime'
-    )
+    if name in ('rf', 'xgb'):
+        explainer = shap.TreeExplainer(estimator)
+        shap_values = explainer(X_test_scaled)
 
-    show(lime_local)
-    input("")  # press enter to see the next model
+    else:
+        background = shap.sample(X_train_scaled, 100, random_state=RANDOM_SEED)
+        explainer = shap.KernelExplainer(
+            estimator.predict, background, link='identity'
+        )
+        
+        raw = explainer.shap_values(X_test_scaled, nsamples=200)
+        shap_values = shap.Explanation(
+            values=raw,
+            base_values=np.full(len(raw), explainer.expected_value),
+            data=X_test_scaled.values,
+            feature_names=feature_names
+        )
+
+    # ── Plot 1: global feature importance (beeswarm) ────────────────────────
+    fig, ax = plt.subplots()
+    shap.plots.beeswarm(shap_values, max_display=15, show=False)
+    plt.title(f"SHAP Beeswarm — {name}")
+    plt.tight_layout()
+    plt.savefig(f"shap_beeswarm_{name}.png", dpi=150, bbox_inches='tight')
+    plt.show()
+
+    # ── Plot 2: bar summary (mean |SHAP|) ────────────────────────────────────
+    fig, ax = plt.subplots()
+    shap.plots.bar(shap_values, max_display=15, show=False)
+    plt.title(f"SHAP Feature Importance — {name}")
+    plt.tight_layout()
+    plt.savefig(f"shap_bar_{name}.png", dpi=150, bbox_inches='tight')
+    plt.show()
+
+    # ── Plot 3: waterfall for the first test instance ────────────────────────
+    fig, ax = plt.subplots()
+    shap.plots.waterfall(shap_values[0], show=False)
+    plt.title(f"SHAP Waterfall (instance 0) — {name}")
+    plt.tight_layout()
+    plt.savefig(f"shap_waterfall_{name}.png", dpi=150, bbox_inches='tight')
+    plt.show()
+
+    input(f"  [Enter] to continue to next model…\n")
