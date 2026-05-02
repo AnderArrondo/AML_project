@@ -7,7 +7,7 @@ from matplotlib import use
 use('Agg')
 #Don't show 
 
-df = pd.read_csv("Assignment-2/LengthOfStay.csv")
+df = pd.read_csv("Assignment-2/data/LengthOfStay.csv")
 folder="Assignment-2/images"
 img_counter=1
 
