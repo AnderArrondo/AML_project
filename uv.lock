@@ -428,6 +428,25 @@ wheels = [
 ]
 
 [[package]]
+name = "dice-ml"
+version = "0.12"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "jsonschema" },
+    { name = "lightgbm" },
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "raiutils" },
+    { name = "scikit-learn" },
+    { name = "tqdm" },
+    { name = "xgboost" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/72/84/05049e71e51caf266c89f6eec4c93c90e0c086d3b75c30c7ffa4d4dd40dc/dice_ml-0.12.tar.gz", hash = "sha256:3e40771ef82ad1084ffe1dd098b801f9cd9d7cdf40efba1b85e38a615ae5a75b", size = 15024998, upload-time = "2025-07-13T17:35:33.481Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9a/a2/63c11da0358ac2e931b0ab2e2cf203d9a234beeb201d62708733f7f7eea7/dice_ml-0.12-py3-none-any.whl", hash = "sha256:77d8195a40e36ff82ffa4c7fc4d19f364f099497b1be46b2123c7396a2e4bbae", size = 2528224, upload-time = "2025-07-13T17:35:31.115Z" },
+]
+
+[[package]]
 name = "dill"
 version = "0.4.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1270,6 +1289,7 @@ name = "ml-class"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "dice-ml" },
     { name = "imblearn" },
     { name = "interpret" },
     { name = "ipykernel" },
@@ -1295,6 +1315,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "dice-ml", specifier = ">=0.12" },
     { name = "imblearn", specifier = ">=0.0" },
     { name = "interpret", specifier = ">=0.7.8" },
     { name = "ipykernel", specifier = ">=7.2.0" },
@@ -2009,6 +2030,22 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c4/59/a5f38970f9bf07cee96128de79590bb354917914a9be11272cfc7ff26af0/pyzmq-27.1.0-cp314-cp314t-win32.whl", hash = "sha256:1f0b2a577fd770aa6f053211a55d1c47901f4d537389a034c690291485e5fe92", size = 587472, upload-time = "2025-09-08T23:08:58.18Z" },
     { url = "https://files.pythonhosted.org/packages/70/d8/78b1bad170f93fcf5e3536e70e8fadac55030002275c9a29e8f5719185de/pyzmq-27.1.0-cp314-cp314t-win_amd64.whl", hash = "sha256:19c9468ae0437f8074af379e986c5d3d7d7bfe033506af442e8c879732bedbe0", size = 661401, upload-time = "2025-09-08T23:08:59.802Z" },
     { url = "https://files.pythonhosted.org/packages/81/d6/4bfbb40c9a0b42fc53c7cf442f6385db70b40f74a783130c5d0a5aa62228/pyzmq-27.1.0-cp314-cp314t-win_arm64.whl", hash = "sha256:dc5dbf68a7857b59473f7df42650c621d7e8923fb03fa74a526890f4d33cc4d7", size = 575170, upload-time = "2025-09-08T23:09:01.418Z" },
+]
+
+[[package]]
+name = "raiutils"
+version = "0.4.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "requests" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/df/4b/ec9518b3f59b38e14be6db4863bfe021e05fab8434bd883f416fbea93351/raiutils-0.4.2.tar.gz", hash = "sha256:d210a4d5a059e48388d341ee02cb87f3c92bbf1f0bcbcecf04fd93a599d2dca4", size = 19817, upload-time = "2024-04-15T21:13:58.204Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/51/81/dde454fb014545f8e3b35b49947e9093f255e95a6ebc2883c75e6d9f8598/raiutils-0.4.2-py3-none-any.whl", hash = "sha256:69b8966c1f5f9ba8e5c4b8ff802b3cd3a379f3a1234f9e412369315d87998192", size = 17554, upload-time = "2024-04-15T21:13:57.117Z" },
 ]
 
 [[package]]

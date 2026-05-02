@@ -1,0 +1,5 @@
+Unnamed: 0,rcount,dialysisrenalendstage,asthma,irondef,pneum,substancedependence,psychologicaldisordermajor,depress,psychother,fibrosisandother,malnutrition,hemo,hematocrit,neutrophils,sodium,glucose,bloodureanitro,creatinine,bmi,pulse,respiration,secondarydiagnosisnonicd9,bin_col_sum,gender_M,facid_B,facid_C,facid_D,facid_E,lengthofstay,_type
+19864,0,0,0,0,0,0,0,0,0,0,0,0,9.5,17.7,138.1843884,151.761622,12.0,1.079850318,32.47769854,74,6.5,7,0,False,False,False,False,False,2.98,original
+22299,0,0,0,0,0,0,0,0,0,0,0,0,11.7,17.7,138.1843884,151.761622,12.0,1.079850318,32.47769854,74,6.5,7,0,False,False,False,False,False,2.0,counterfactual
+19864,0,0,0,0,0,0,0,0,0,0,0,0,11.0,17.7,138.1843884,151.761622,12.0,1.079850318,32.47769854,74,6.5,7,0,False,False,False,False,False,2.0,counterfactual
+19864,0,0,0,0,0,0,0,0,0,0,0,0,9.5,17.7,138.1843884,151.761622,12.0,1.079850318,30.840848,74,6.5,7,0,False,False,False,False,False,2.0,counterfactual

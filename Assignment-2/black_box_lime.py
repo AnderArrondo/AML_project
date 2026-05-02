@@ -1,5 +1,8 @@
 
 import shap
+import dice_ml
+from dice_ml import Dice
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -42,8 +45,12 @@ PROCESSED_PATH = "./Assignment-2/processed_data.csv"
 SHOW_PREDS = 250 
 
 PREPROCESS_DATA = False
-LIME = True
-SHAP = True
+LIME = False
+SHAP = False
+COUNTERFACTUAL = True
+
+CF_INSTANCES   = 3   # how many test rows to explain
+CF_PER_INSTANCE = 3  # how many counterfactuals to generate each time
 
 
 if PREPROCESS_DATA:
@@ -213,5 +220,60 @@ if SHAP:
         plt.tight_layout()
         plt.savefig(f"shap_waterfall_{name}.png", dpi=150, bbox_inches='tight')
         plt.show()
+
+        input(f"  [Enter] to continue to next model…\n")
+
+# Counterfactual Explanations (DiCE)
+if COUNTERFACTUAL:
+    dummy_and_ordinal_cols = [c for c in feature_names if
+                               c.startswith('gender_') or
+                               c.startswith('facid_') or
+                               c == 'rcount']
+    continuous_cols = [c for c in feature_names if c not in dummy_and_ordinal_cols]
+
+    dice_data = dice_ml.Data(
+        dataframe=pd.concat([X_train, y_train], axis=1),
+        continuous_features=continuous_cols,
+        outcome_name='lengthofstay'
+    )
+
+    cf_input = X_test.iloc[:CF_INSTANCES].reset_index(drop=True)
+
+    for name, model in models.items():
+        print(f"\n── Counterfactuals for '{name}' ──")
+
+        dice_model = dice_ml.Model(model=model, backend='sklearn', model_type='regressor')
+        explainer_cf = Dice(dice_data, dice_model, method='random')
+
+        current_preds = model.predict(cf_input)
+        print("Current predictions:", np.round(current_preds, 2))
+        
+        mean_pred = float(np.mean(current_preds))
+        desired_range = [max(1, mean_pred * 0.6), mean_pred * 0.85]
+        print(f"Desired range: {[round(x,2) for x in desired_range]}")
+
+        cf = explainer_cf.generate_counterfactuals(
+            cf_input,
+            total_CFs=CF_PER_INSTANCE,
+            desired_range=desired_range,
+            features_to_vary=continuous_cols,  # only vary continuous features
+            random_seed=RANDOM_SEED,
+        )
+
+        # ── Text summary ────────────────────────────────────────────────────
+        cf.visualize_as_dataframe(show_only_changes=True)
+
+        # ── Save each instance's counterfactuals as CSV ──────────────────────
+        for i, cf_example in enumerate(cf.cf_examples_list):
+            df_cf = cf_example.final_cfs_df
+            if df_cf is not None and not df_cf.empty:
+                original_row = cf_input.iloc[[i]].copy()
+                original_row['lengthofstay'] = round(current_preds[i], 3)
+                original_row['_type'] = 'original'
+                df_cf['_type'] = 'counterfactual'
+                combined = pd.concat([original_row, df_cf], ignore_index=True)
+                path = f"cf_{name}_instance{i}.csv"
+                combined.to_csv(path, index=False)
+                print(f"  Saved: {path}")
 
         input(f"  [Enter] to continue to next model…\n")
